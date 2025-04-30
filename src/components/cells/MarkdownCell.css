@@ -1,0 +1,186 @@
+.markdown-cell {
+  margin: 20px 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.markdown-cell.editing {
+  box-shadow: 0 0 0 2px #4d78cc;
+}
+
+.cell-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.cell-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.cell-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.cell-action-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.cell-action-btn:hover {
+  background-color: #f0f0f0;
+  color: #4d78cc;
+}
+
+.cell-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editor-container {
+  min-height: 100px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.markdown-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+}
+
+.preview-btn {
+  padding: 4px 12px;
+  background-color: #4d78cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+
+.preview-btn:hover {
+  background-color: #3b5998;
+}
+
+.markdown-display {
+  padding: 16px;
+  line-height: 1.6;
+  font-size: 16px;
+  color: #333;
+  cursor: text;
+}
+
+.markdown-display h1,
+.markdown-display h2,
+.markdown-display h3,
+.markdown-display h4,
+.markdown-display h5,
+.markdown-display h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: 600;
+}
+
+.markdown-display h1 {
+  font-size: 2em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3em;
+}
+
+.markdown-display h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3em;
+}
+
+.markdown-display h3 {
+  font-size: 1.25em;
+}
+
+.markdown-display p {
+  margin-bottom: 1em;
+}
+
+.markdown-display code {
+  font-family: 'Fira Code', monospace;
+  background-color: #f6f8fa;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 85%;
+}
+
+.markdown-display pre {
+  background-color: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+
+.markdown-display pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.markdown-display ul,
+.markdown-display ol {
+  padding-left: 2em;
+  margin-bottom: 1em;
+}
+
+.markdown-display blockquote {
+  margin-left: 0;
+  padding-left: 1em;
+  color: #6a737d;
+  border-left: 3px solid #dfe2e5;
+}
+
+.markdown-display table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+.markdown-display table th,
+.markdown-display table td {
+  padding: 6px 13px;
+  border: 1px solid #dfe2e5;
+}
+
+.markdown-display table tr {
+  background-color: #fff;
+  border-top: 1px solid #c6cbd1;
+}
+
+.markdown-display table tr:nth-child(2n) {
+  background-color: #f6f8fa;
+}
+
+.markdown-display img {
+  max-width: 100%;
+  height: auto;
+} 
