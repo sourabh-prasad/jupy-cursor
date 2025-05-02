@@ -1,7 +1,13 @@
 import { useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { NotebookCell, CodeCell, MarkdownCell, Notebook } from '../types';
-import { createCodeCell, createMarkdownCell, executeJavaScript } from '../utils/cell-utils';
+import { NotebookCell, CodeCell, MarkdownCell, Notebook, CodeLanguage } from '../types';
+import { 
+  createCodeCell, 
+  createMarkdownCell, 
+  executeJavaScript, 
+  executePython, 
+  initPyodide
+} from '../utils/cell-utils';
 
 export const useNotebook = (initialName: string = 'Untitled Notebook') => {
   // Create initial notebook state
@@ -13,13 +19,36 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
 
   // Store variable scope for code execution context
   const [executionContext, setExecutionContext] = useState<{ [key: string]: any }>({});
+  
+  // Track Pyodide initialization state
+  const [pyodideLoaded, setPyodideLoaded] = useState(false);
+  
+  // Initialize Pyodide if needed
+  const initializePyodideIfNeeded = useCallback(async () => {
+    if (!pyodideLoaded) {
+      try {
+        await initPyodide();
+        setPyodideLoaded(true);
+        return true;
+      } catch (error) {
+        console.error('Failed to initialize Pyodide:', error);
+        return false;
+      }
+    }
+    return true;
+  }, [pyodideLoaded]);
 
   // Add a new cell
-  const addCell = useCallback((type: 'code' | 'markdown', index: number) => {
+  const addCell = useCallback((type: 'code' | 'markdown', index: number, language: CodeLanguage = 'javascript') => {
     setNotebook((prev) => {
       const newCells = [...prev.cells];
       if (type === 'code') {
-        newCells.splice(index + 1, 0, createCodeCell());
+        const newCell = createCodeCell();
+        if (language === 'python') {
+          newCell.language = 'python';
+          newCell.content = '# Type your Python code here';
+        }
+        newCells.splice(index + 1, 0, newCell);
       } else {
         newCells.splice(index + 1, 0, createMarkdownCell());
       }
@@ -29,6 +58,11 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
       };
     });
   }, []);
+
+  // Add a Python cell specifically
+  const addPythonCell = useCallback((index: number) => {
+    addCell('code', index, 'python');
+  }, [addCell]);
 
   // Delete a cell
   const deleteCell = useCallback((id: string) => {
@@ -44,6 +78,18 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
       ...prev,
       cells: prev.cells.map((cell) =>
         cell.id === id ? { ...cell, content } : cell
+      ),
+    }));
+  }, []);
+
+  // Change cell language
+  const changeCellLanguage = useCallback((id: string, language: CodeLanguage) => {
+    setNotebook((prev) => ({
+      ...prev,
+      cells: prev.cells.map((cell) =>
+        cell.id === id && cell.type === 'code' 
+          ? { ...cell as CodeCell, language } 
+          : cell
       ),
     }));
   }, []);
@@ -67,8 +113,27 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
     }));
 
     try {
-      // Execute the code
-      const { result, variables } = await executeJavaScript(cell.content, executionContext);
+      // Execute code based on language
+      let result: string;
+      let variables: { [key: string]: any };
+      
+      if (cell.language === 'python') {
+        // Make sure Pyodide is initialized for Python cells
+        const isPyodideReady = await initializePyodideIfNeeded();
+        if (!isPyodideReady) {
+          throw new Error('Failed to initialize Python environment');
+        }
+        
+        // Execute Python code
+        const pyResult = await executePython(cell.content, executionContext);
+        result = pyResult.result;
+        variables = pyResult.variables;
+      } else {
+        // Execute JavaScript code
+        const jsResult = await executeJavaScript(cell.content, executionContext);
+        result = jsResult.result;
+        variables = jsResult.variables;
+      }
       
       // Update execution context
       setExecutionContext(variables);
@@ -93,7 +158,7 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
         ),
       }));
     }
-  }, [notebook.cells, executionContext]);
+  }, [notebook.cells, executionContext, initializePyodideIfNeeded]);
 
   // Move cell up
   const moveCellUp = useCallback((id: string) => {
@@ -200,15 +265,19 @@ export const useNotebook = (initialName: string = 'Untitled Notebook') => {
   return {
     notebook,
     addCell,
+    addPythonCell,
     deleteCell,
     updateCellContent,
     executeCell,
     moveCellUp,
     moveCellDown,
     changeCellType,
+    changeCellLanguage,
     setNotebookName,
     clearAllOutputs,
     exportNotebook,
     importNotebook,
+    pyodideLoaded,
+    initializePyodideIfNeeded,
   };
 }; 

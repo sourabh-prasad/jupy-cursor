@@ -9,8 +9,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -20,68 +20,98 @@
 
 .notebook-title-input {
   font-size: 24px;
-  font-weight: 600;
-  color: #333;
-  border: 1px solid transparent;
-  background-color: transparent;
-  padding: 6px 12px;
-  border-radius: 4px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
   width: 100%;
-  transition: all 0.2s;
+  padding: 5px 0;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s;
 }
 
-.notebook-title-input:hover,
 .notebook-title-input:focus {
-  border-color: #ddd;
-  background-color: #f9f9f9;
   outline: none;
+  border-bottom: 2px solid #4d78cc;
 }
 
 .notebook-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .notebook-action-btn {
-  padding: 8px 16px;
-  background-color: #f0f0f0;
-  color: #333;
-  border: none;
+  padding: 6px 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #e0e0e0;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  color: #333;
   transition: all 0.2s;
 }
 
 .notebook-action-btn:hover {
-  background-color: #e0e0e0;
+  background-color: #eaeaea;
+  color: #4d78cc;
 }
 
 .notebook-cells {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  margin: 20px 0;
 }
 
 .notebook-footer {
-  margin-top: 24px;
-  padding-top: 16px;
+  margin-top: 30px;
+  padding-top: 20px;
   border-top: 1px solid #e0e0e0;
+}
+
+.notebook-footer-buttons {
   display: flex;
-  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .add-cell-btn {
-  padding: 10px 20px;
+  padding: 8px 16px;
   background-color: #f0f0f0;
-  color: #333;
   border: 1px dashed #ccc;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  color: #666;
+  width: 200px;
+  text-align: center;
   transition: all 0.2s;
 }
 
 .add-cell-btn:hover {
   background-color: #e0e0e0;
+  color: #4d78cc;
+  border-color: #4d78cc;
+}
+
+.pyodide-status-message {
+  background-color: #fff8e6;
+  color: #856404;
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  border-left: 4px solid #ffc107;
+  display: flex;
+  align-items: center;
+}
+
+.pyodide-status-message::before {
+  content: '⚠️';
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.pyodide-status {
+  font-size: 13px;
+  color: #666;
+  margin-top: 10px;
+  padding: 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
 } 

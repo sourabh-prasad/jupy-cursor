@@ -8,8 +8,13 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/uuid@9.0.0/dist/umd/uuidv4.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js"></script>
+  
+  <!-- Pyodide must be loaded with type="module" for proper initialization -->
+  <script type="module">
+    import { loadPyodide } from 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.mjs';
+    window.loadPyodide = loadPyodide;
+  </script>
   
   <style>
     * {
@@ -137,6 +142,36 @@
       font-weight: 600;
       color: #6b7280;
       text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .language-badge {
+      padding: 2px 6px;
+      font-size: 10px;
+      border-radius: 3px;
+      background-color: #e0e0e0;
+    }
+    
+    .language-badge.js {
+      background-color: #f7df1e;
+      color: #000;
+    }
+    
+    .language-badge.python {
+      background-color: #3572A5;
+      color: #fff;
+    }
+    
+    .language-selector {
+      margin-left: 8px;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      cursor: pointer;
     }
     
     .cell-actions {
@@ -191,9 +226,15 @@
     
     .execution-actions {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
       padding: 8px 12px;
       background-color: #f8f9fa;
+    }
+    
+    .pyodide-status {
+      font-size: 12px;
+      color: #666;
     }
     
     .execute-btn {
@@ -268,6 +309,7 @@
       border-top: 1px solid #e0e0e0;
       display: flex;
       justify-content: center;
+      gap: 10px;
     }
     
     .add-cell-btn {
@@ -285,6 +327,15 @@
       background-color: #e0e0e0;
     }
     
+    .add-cell-btn.python {
+      border-color: #3572A5;
+      background-color: #f0f8ff;
+    }
+    
+    .add-cell-btn.python:hover {
+      background-color: #e6f0fa;
+    }
+    
     .app-footer {
       background-color: #2c3e50;
       color: white;
@@ -292,18 +343,141 @@
       text-align: center;
       font-size: 0.9rem;
     }
+    
+    .pyodide-loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: #fcf8e3;
+      color: #8a6d3b;
+      text-align: center;
+      padding: 10px;
+      z-index: 1000;
+    }
   </style>
-</head>
-<body>
-  <div id="root"></div>
-
+  
   <script type="text/babel">
+    // Simple UUID function implementation
+    function uuidv4() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    
+    // Pyodide instance
+    let pyodideInstance = null;
+    let pyodideLoading = false;
+    
+    // Initialize Pyodide
+    async function initPyodide() {
+      if (pyodideInstance) return pyodideInstance;
+      if (pyodideLoading) return null;
+      
+      // Wait until loadPyodide is available (module script might be still loading)
+      if (!window.loadPyodide) {
+        return new Promise((resolve) => {
+          const checkIfLoaded = () => {
+            if (window.loadPyodide) {
+              resolve(initPyodide());
+            } else {
+              setTimeout(checkIfLoaded, 100);
+            }
+          };
+          checkIfLoaded();
+        });
+      }
+      
+      pyodideLoading = true;
+      try {
+        pyodideInstance = await window.loadPyodide({
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/"
+        });
+        console.log("Pyodide loaded successfully!");
+        return pyodideInstance;
+      } catch (error) {
+        console.error("Failed to load Pyodide:", error);
+        return null;
+      } finally {
+        pyodideLoading = false;
+      }
+    }
+    
+    // Execute Python code
+    async function executePythonCode(code) {
+      if (!pyodideInstance) {
+        try {
+          pyodideInstance = await initPyodide();
+          if (!pyodideInstance) {
+            return { error: "Failed to initialize Python environment" };
+          }
+        } catch (error) {
+          return { error: `Python initialization error: ${error.message}` };
+        }
+      }
+      
+      try {
+        // Capture stdout
+        let output = "";
+        pyodideInstance.setStdout({
+          write: (text) => {
+            output += text;
+          }
+        });
+        
+        // Run the code
+        const result = pyodideInstance.runPython(code);
+        
+        // Format the result
+        let resultStr = "";
+        if (result !== undefined) {
+          // Try to convert Python objects to JavaScript
+          try {
+            const jsResult = result.toJs ? result.toJs() : result;
+            if (jsResult !== undefined) {
+              resultStr = typeof jsResult === 'object' 
+                ? JSON.stringify(jsResult, null, 2) 
+                : String(jsResult);
+            }
+          } catch (e) {
+            // If conversion fails, use string representation
+            resultStr = String(result);
+          }
+        }
+        
+        return { 
+          output: output + (resultStr && output ? "\n" + resultStr : resultStr) 
+        };
+      } catch (error) {
+        return { error: error.message };
+      }
+    }
+    
     // Cell component
-    const CodeCell = ({ id, content, output, isExecuting, onContentChange, onExecute, onDelete, onAddCell, onMoveUp, onMoveDown, onChangeType, index }) => {
+    const CodeCell = ({ id, content, output, isExecuting, language, onContentChange, onExecute, onDelete, onAddCell, onAddPythonCell, onMoveUp, onMoveDown, onChangeType, onChangeLanguage, index }) => {
+      const placeholder = language === 'python' 
+        ? "# Type your Python code here"
+        : "// Type your JavaScript code here";
+        
       return (
         <div className="cell code-cell">
           <div className="cell-toolbar">
-            <div className="cell-type">Code</div>
+            <div className="cell-type">
+              Code
+              <span className={`language-badge ${language === 'python' ? 'python' : 'js'}`}>
+                {language === 'python' ? 'Python' : 'JS'}
+              </span>
+              <select 
+                className="language-selector"
+                value={language}
+                onChange={(e) => onChangeLanguage(id, e.target.value)}
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+              </select>
+            </div>
             <div className="cell-actions">
               <button
                 className="cell-action-btn"
@@ -329,10 +503,17 @@
               </button>
               <button
                 className="cell-action-btn"
-                onClick={() => onAddCell('code', index)}
-                title="Add Code Cell Below"
+                onClick={() => onAddCell('code', index, 'javascript')}
+                title="Add JavaScript Cell Below"
               >
-                <span>+</span>
+                <span>+JS</span>
+              </button>
+              <button
+                className="cell-action-btn"
+                onClick={() => onAddPythonCell(index)}
+                title="Add Python Cell Below"
+              >
+                <span>+Py</span>
               </button>
               <button
                 className="cell-action-btn"
@@ -349,11 +530,21 @@
               className="editor-textarea"
               value={content}
               onChange={(e) => onContentChange(id, e.target.value)}
-              placeholder="// Type your JavaScript code here"
+              placeholder={placeholder}
             />
           </div>
 
           <div className="execution-actions">
+            {language === 'python' && !pyodideInstance && !pyodideLoading && (
+              <div className="pyodide-status">
+                Python environment will be loaded on execution
+              </div>
+            )}
+            {language === 'python' && pyodideLoading && (
+              <div className="pyodide-status">
+                Loading Python environment...
+              </div>
+            )}
             <button 
               className="execute-btn" 
               onClick={() => onExecute(id)}
@@ -372,7 +563,7 @@
       );
     };
 
-    const MarkdownCell = ({ id, content, onContentChange, onDelete, onAddCell, onMoveUp, onMoveDown, onChangeType, index }) => {
+    const MarkdownCell = ({ id, content, onContentChange, onDelete, onAddCell, onAddPythonCell, onMoveUp, onMoveDown, onChangeType, index }) => {
       const [isEditing, setIsEditing] = React.useState(false);
       const parsedMarkdown = marked.parse(content);
 
@@ -457,31 +648,46 @@
           {
             id: uuidv4(),
             type: 'markdown',
-            content: '# Welcome to JupyterReact\n\nThis is a React-based Jupyter notebook alternative running in your browser.\n\n- Edit this cell by clicking on it\n- Add code cells to run JavaScript'
+            content: '# Welcome to JupyterReact\n\nThis is a React-based Jupyter notebook alternative running in your browser.\n\n- Edit this cell by clicking on it\n- Add code cells to run JavaScript or Python'
           },
           {
             id: uuidv4(),
             type: 'code',
             content: '// Welcome to JupyterReact!\n// Type your JavaScript code here and press Execute\n\nconst greeting = "Hello, World!";\nconsole.log(greeting);\n\n// Return values are displayed\ngreeting',
             output: '',
-            isExecuting: false
+            isExecuting: false,
+            language: 'javascript'
+          },
+          {
+            id: uuidv4(),
+            type: 'code',
+            content: '# Welcome to Python in the browser!\n# Try running Python code\n\nprint("Hello from Python!")\n\n# Return values are displayed\n2 + 2',
+            output: '',
+            isExecuting: false,
+            language: 'python'
           }
         ]
       });
 
       // Store variable scope for code execution context
       const [executionContext, setExecutionContext] = React.useState({});
+      const [isPyodideLoading, setIsPyodideLoading] = React.useState(false);
 
       // Add a new cell
-      const addCell = (type, index) => {
+      const addCell = (type, index, language = 'javascript') => {
         const newCell = type === 'code' 
-          ? { id: uuidv4(), type: 'code', content: '', output: '', isExecuting: false }
+          ? { id: uuidv4(), type: 'code', content: '', output: '', isExecuting: false, language }
           : { id: uuidv4(), type: 'markdown', content: '' };
         
         const newCells = [...notebook.cells];
         newCells.splice(index + 1, 0, newCell);
         
         setNotebook({ ...notebook, cells: newCells });
+      };
+      
+      // Add a Python cell
+      const addPythonCell = (index) => {
+        addCell('code', index, 'python');
       };
 
       // Delete a cell
@@ -506,6 +712,18 @@
           )
         });
       };
+      
+      // Change cell language
+      const changeCellLanguage = (id, language) => {
+        setNotebook({
+          ...notebook,
+          cells: notebook.cells.map(cell =>
+            cell.id === id && cell.type === 'code' 
+              ? { ...cell, language } 
+              : cell
+          )
+        });
+      };
 
       // Execute code cell
       const executeCell = async (id) => {
@@ -525,80 +743,99 @@
         });
 
         try {
-          // Create a scope with previous variables
-          const variables = { ...executionContext };
-          const code = cell.content;
-          
-          // Capture console.log output
-          const logs = [];
-          const originalConsoleLog = console.log;
-          console.log = (...args) => {
-            logs.push(args.map(arg => 
-              typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-            ).join(' '));
-            originalConsoleLog.apply(console, args);
-          };
-          
-          // Execute the code and capture the result
           let result;
-          try {
-            // Create a function to evaluate the code with the variables in scope
-            const executeFunction = new Function(
-              ...Object.keys(variables),
-              `
-                try {
-                  return eval(\`${code}\`);
-                } catch (error) {
-                  return { error: error.message };
-                }
-              `
-            );
-            
-            result = executeFunction(...Object.values(variables));
-            
-            // Check if the result is an error
-            if (result && result.error) {
-              throw new Error(result.error);
+          
+          if (cell.language === 'python') {
+            // Execute Python code
+            if (!pyodideInstance && !pyodideLoading) {
+              setIsPyodideLoading(true);
             }
-          } catch (error) {
-            throw error;
-          } finally {
-            // Restore original console.log
-            console.log = originalConsoleLog;
-          }
-          
-          // Format result for display
-          let output = '';
-          
-          // Add result if it's not undefined
-          if (result !== undefined) {
-            output += typeof result === 'object' 
-              ? JSON.stringify(result, null, 2) 
-              : String(result);
-          }
-          
-          // Add logs to the output
-          if (logs.length > 0) {
-            output += (output ? '\n' : '') + logs.join('\n');
+            
+            const pythonResult = await executePythonCode(cell.content);
+            
+            if (pythonResult.error) {
+              result = `Error: ${pythonResult.error}`;
+            } else {
+              result = pythonResult.output || '';
+            }
+            
+            setIsPyodideLoading(false);
+          } else {
+            // Execute JavaScript code
+            // Create a scope with previous variables
+            const variables = { ...executionContext };
+            const code = cell.content;
+            
+            // Capture console.log output
+            const logs = [];
+            const originalConsoleLog = console.log;
+            console.log = (...args) => {
+              logs.push(args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+              ).join(' '));
+              originalConsoleLog.apply(console, args);
+            };
+            
+            // Execute the code and capture the result
+            try {
+              // Create a function to evaluate the code with the variables in scope
+              const executeFunction = new Function(
+                ...Object.keys(variables),
+                `
+                  try {
+                    return eval(\`${code}\`);
+                  } catch (error) {
+                    return { error: error.message };
+                  }
+                `
+              );
+              
+              const jsResult = executeFunction(...Object.values(variables));
+              
+              // Check if the result is an error
+              if (jsResult && jsResult.error) {
+                throw new Error(jsResult.error);
+              }
+              
+              // Format result for display
+              result = '';
+              
+              // Add result if it's not undefined
+              if (jsResult !== undefined) {
+                result += typeof jsResult === 'object' 
+                  ? JSON.stringify(jsResult, null, 2) 
+                  : String(jsResult);
+              }
+              
+              // Add logs to the result
+              if (logs.length > 0) {
+                result += (result ? '\n' : '') + logs.join('\n');
+              }
+              
+              // Update the execution context by extracting global variables
+              const newContext = {};
+              for (const key in window) {
+                if (!(key in window.__ORIGINAL_KEYS) && typeof window[key] !== 'function') {
+                  newContext[key] = window[key];
+                }
+              }
+              
+              setExecutionContext({ ...executionContext, ...newContext });
+            } catch (error) {
+              result = `Error: ${error.message}`;
+            } finally {
+              // Restore original console.log
+              console.log = originalConsoleLog;
+            }
           }
           
           // Update the cell with the result
           setNotebook({
             ...notebook,
             cells: notebook.cells.map(c =>
-              c.id === id ? { ...c, isExecuting: false, output } : c
+              c.id === id ? { ...c, isExecuting: false, output: result } : c
             )
           });
-          
-          // Update the execution context by extracting global variables
-          const newContext = {};
-          for (const key in window) {
-            if (!(key in window.__ORIGINAL_KEYS) && typeof window[key] !== 'function') {
-              newContext[key] = window[key];
-            }
-          }
-          
-          setExecutionContext({ ...executionContext, ...newContext });
         } catch (error) {
           // Handle errors
           setNotebook({
@@ -647,7 +884,14 @@
         if (cell.type === 'code') {
           newCells[index] = { id: cell.id, type: 'markdown', content: cell.content };
         } else {
-          newCells[index] = { id: cell.id, type: 'code', content: cell.content, output: '', isExecuting: false };
+          newCells[index] = { 
+            id: cell.id, 
+            type: 'code', 
+            content: cell.content, 
+            output: '', 
+            isExecuting: false,
+            language: 'javascript' 
+          };
         }
 
         setNotebook({ ...notebook, cells: newCells });
@@ -696,13 +940,16 @@
               content={cell.content}
               output={cell.output}
               isExecuting={cell.isExecuting}
+              language={cell.language || 'javascript'}
               onContentChange={updateCellContent}
               onExecute={executeCell}
               onDelete={deleteCell}
               onAddCell={addCell}
+              onAddPythonCell={addPythonCell}
               onMoveUp={moveCellUp}
               onMoveDown={moveCellDown}
               onChangeType={changeCellType}
+              onChangeLanguage={changeCellLanguage}
               index={index}
             />
           );
@@ -715,6 +962,7 @@
               onContentChange={updateCellContent}
               onDelete={deleteCell}
               onAddCell={addCell}
+              onAddPythonCell={addPythonCell}
               onMoveUp={moveCellUp}
               onMoveDown={moveCellDown}
               onChangeType={changeCellType}
@@ -726,6 +974,12 @@
 
       return (
         <div className="app-container">
+          {isPyodideLoading && (
+            <div className="pyodide-loading">
+              Loading Python environment... This may take a few moments.
+            </div>
+          )}
+          
           <header className="app-header">
             <h1>JupyterReact</h1>
             <p>A React-based Jupyter notebook alternative</p>
@@ -745,10 +999,17 @@
                 <div className="notebook-actions">
                   <button 
                     className="notebook-action-btn"
-                    onClick={() => addCell('code', notebook.cells.length - 1)}
-                    title="Add Code Cell"
+                    onClick={() => addCell('code', notebook.cells.length - 1, 'javascript')}
+                    title="Add JavaScript Cell"
                   >
-                    + Code
+                    + JavaScript
+                  </button>
+                  <button 
+                    className="notebook-action-btn"
+                    onClick={() => addCell('code', notebook.cells.length - 1, 'python')}
+                    title="Add Python Cell"
+                  >
+                    + Python
                   </button>
                   <button 
                     className="notebook-action-btn"
@@ -781,9 +1042,15 @@
               <div className="notebook-footer">
                 <button 
                   className="add-cell-btn"
-                  onClick={() => addCell('code', notebook.cells.length - 1)}
+                  onClick={() => addCell('code', notebook.cells.length - 1, 'javascript')}
                 >
-                  + Add Cell
+                  + Add JavaScript Cell
+                </button>
+                <button 
+                  className="add-cell-btn python"
+                  onClick={() => addCell('code', notebook.cells.length - 1, 'python')}
+                >
+                  + Add Python Cell
                 </button>
               </div>
             </div>
@@ -798,5 +1065,8 @@
 
     ReactDOM.render(<NotebookApp />, document.getElementById('root'));
   </script>
+</head>
+<body>
+  <div id="root"></div>
 </body>
 </html>

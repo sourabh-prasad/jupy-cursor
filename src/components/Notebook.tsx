@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import CodeCell from './cells/CodeCell';
 import MarkdownCell from './cells/MarkdownCell';
 import { useNotebook } from '../hooks/useNotebook';
-import { NotebookCell } from '../types';
+import { NotebookCell, CodeCell as CodeCellType } from '../types';
 import './Notebook.css';
 
 interface NotebookProps {
@@ -13,19 +13,41 @@ const Notebook: React.FC<NotebookProps> = ({ initialName = 'Untitled Notebook' }
   const {
     notebook,
     addCell,
+    addPythonCell,
     deleteCell,
     updateCellContent,
     executeCell,
     moveCellUp,
     moveCellDown,
     changeCellType,
+    changeCellLanguage,
     setNotebookName,
     clearAllOutputs,
     exportNotebook,
+    importNotebook,
+    pyodideLoaded,
+    initializePyodideIfNeeded,
   } = useNotebook(initialName);
 
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pyodideInitMessage, setPyodideInitMessage] = useState<string | null>(null);
+
+  // Initialize Pyodide when needed
+  useEffect(() => {
+    const loadPyodide = async () => {
+      try {
+        setPyodideInitMessage('Preloading Python environment...');
+        await initializePyodideIfNeeded();
+        setPyodideInitMessage(null);
+      } catch (error) {
+        setPyodideInitMessage('Failed to load Python environment. Some features may not work.');
+        console.error('Failed to preload Pyodide:', error);
+      }
+    };
+
+    loadPyodide();
+  }, [initializePyodideIfNeeded]);
 
   // Handle file import
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,15 +58,14 @@ const Notebook: React.FC<NotebookProps> = ({ initialName = 'Untitled Notebook' }
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        // TODO: Implement import functionality
-        console.log('File imported:', content);
+        importNotebook(content);
       } catch (error) {
         console.error('Failed to import notebook:', error);
         alert('Invalid notebook file');
       }
     };
     reader.readAsText(file);
-  }, []);
+  }, [importNotebook]);
 
   // Trigger file input click
   const handleImportClick = useCallback(() => {
@@ -54,20 +75,24 @@ const Notebook: React.FC<NotebookProps> = ({ initialName = 'Untitled Notebook' }
   // Render each cell based on its type
   const renderCell = (cell: NotebookCell, index: number) => {
     if (cell.type === 'code') {
+      const codeCell = cell as CodeCellType;
       return (
         <CodeCell
           key={cell.id}
           id={cell.id}
           content={cell.content}
-          output={cell.output}
-          isExecuting={cell.isExecuting}
+          output={codeCell.output}
+          isExecuting={codeCell.isExecuting}
+          language={codeCell.language || 'javascript'}
           onContentChange={updateCellContent}
           onExecute={executeCell}
           onDelete={deleteCell}
           onAddCell={addCell}
+          onAddPythonCell={addPythonCell}
           onMoveUp={moveCellUp}
           onMoveDown={moveCellDown}
           onChangeType={changeCellType}
+          onChangeLanguage={changeCellLanguage}
           index={index}
         />
       );
@@ -104,9 +129,16 @@ const Notebook: React.FC<NotebookProps> = ({ initialName = 'Untitled Notebook' }
           <button 
             className="notebook-action-btn"
             onClick={() => addCell('code', notebook.cells.length - 1)}
-            title="Add Code Cell"
+            title="Add JavaScript Cell"
           >
-            + Code
+            + JavaScript
+          </button>
+          <button 
+            className="notebook-action-btn"
+            onClick={() => addPythonCell(notebook.cells.length - 1)}
+            title="Add Python Cell"
+          >
+            + Python
           </button>
           <button 
             className="notebook-action-btn"
@@ -146,17 +178,36 @@ const Notebook: React.FC<NotebookProps> = ({ initialName = 'Untitled Notebook' }
         </div>
       </div>
 
+      {pyodideInitMessage && (
+        <div className="pyodide-status-message">
+          {pyodideInitMessage}
+        </div>
+      )}
+
       <div className="notebook-cells">
         {notebook.cells.map((cell, index) => renderCell(cell, index))}
       </div>
 
       <div className="notebook-footer">
-        <button 
-          className="add-cell-btn"
-          onClick={() => addCell('code', notebook.cells.length - 1)}
-        >
-          + Add Cell
-        </button>
+        <div className="notebook-footer-buttons">
+          <button 
+            className="add-cell-btn"
+            onClick={() => addCell('code', notebook.cells.length - 1)}
+          >
+            + Add JavaScript Cell
+          </button>
+          <button 
+            className="add-cell-btn"
+            onClick={() => addPythonCell(notebook.cells.length - 1)}
+          >
+            + Add Python Cell
+          </button>
+        </div>
+        {!pyodideLoaded && (
+          <div className="pyodide-status">
+            Python environment not loaded yet. Click "Add Python Cell" to initialize.
+          </div>
+        )}
       </div>
     </div>
   );
