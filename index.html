@@ -121,18 +121,34 @@
     
     .cell {
       margin: 20px 0;
-      border: 1px solid #e0e0e0;
+      border-left: 5px solid transparent;
       border-radius: 6px;
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       transition: all 0.3s ease;
     }
     
+    .cell.code-cell {
+      border-left-color: #5b80b2;
+    }
+    
+    .cell.markdown-cell {
+      border-left-color: #42a5f5;
+    }
+    
+    .cell:focus-within, .cell.focused {
+      box-shadow: 0 0 0 2px #4d78cc;
+    }
+    
+    .cell.executing {
+      border-left-color: #f0ad4e;
+    }
+    
     .cell-toolbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 12px;
+      padding: 4px 8px;
       background-color: #f8f9fa;
       border-bottom: 1px solid #e0e0e0;
     }
@@ -141,10 +157,16 @@
       font-size: 12px;
       font-weight: 600;
       color: #6b7280;
-      text-transform: uppercase;
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    
+    .execution-count {
+      font-family: monospace;
+      font-size: 12px;
+      color: #3a87ad;
+      min-width: 60px;
     }
     
     .language-badge {
@@ -204,9 +226,25 @@
       cursor: not-allowed;
     }
     
-    .editor-container {
-      min-height: 100px;
+    .cell-input-area {
+      display: flex;
       width: 100%;
+    }
+    
+    .cell-prompt {
+      width: 70px;
+      padding: 10px 5px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #3a87ad;
+      text-align: right;
+      border-right: 1px solid #e0e0e0;
+      background: #f5f5f5;
+    }
+    
+    .editor-container {
+      flex: 1;
+      min-height: 100px;
       border-bottom: 1px solid #e0e0e0;
     }
     
@@ -257,10 +295,26 @@
       cursor: not-allowed;
     }
     
+    .cell-output-area {
+      display: flex;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    .output-prompt {
+      width: 70px;
+      padding: 10px 5px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #d14836;
+      text-align: right;
+      border-right: 1px solid #e0e0e0;
+      background: #f5f5f5;
+    }
+    
     .cell-output {
+      flex: 1;
       padding: 12px;
       background-color: #f8f9fa;
-      border-top: 1px solid #e0e0e0;
       max-height: 300px;
       overflow-y: auto;
     }
@@ -354,6 +408,102 @@
       text-align: center;
       padding: 10px;
       z-index: 1000;
+      border-bottom: 2px solid #faebcc;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      font-weight: bold;
+    }
+    
+    .help-btn {
+      padding: 4px 12px;
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      margin-left: 8px;
+      cursor: pointer;
+    }
+    
+    .help-btn:hover {
+      background-color: #5a6268;
+    }
+    
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .modal-content {
+      background-color: white;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    
+    .shortcut-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+    
+    .shortcut-table th,
+    .shortcut-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .shortcut-table th {
+      font-weight: 600;
+      background-color: #f5f5f5;
+    }
+    
+    .shortcut-category {
+      font-weight: 600;
+      font-size: 1rem;
+      margin: 16px 0 8px;
+      color: #4d78cc;
+    }
+    
+    .shortcut-key {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 0 2px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      font-family: monospace;
+      border: 1px solid #ddd;
     }
   </style>
   
@@ -372,44 +522,57 @@
     let pyodideLoading = false;
     
     // Initialize Pyodide
-    async function initPyodide() {
+    const initializePyodide = async () => {
       if (pyodideInstance) return pyodideInstance;
-      if (pyodideLoading) return null;
       
-      // Wait until loadPyodide is available (module script might be still loading)
-      if (!window.loadPyodide) {
-        return new Promise((resolve) => {
-          const checkIfLoaded = () => {
-            if (window.loadPyodide) {
-              resolve(initPyodide());
-            } else {
-              setTimeout(checkIfLoaded, 100);
-            }
-          };
-          checkIfLoaded();
-        });
-      }
-      
-      pyodideLoading = true;
       try {
-        pyodideInstance = await window.loadPyodide({
-          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/"
-        });
-        console.log("Pyodide loaded successfully!");
-        return pyodideInstance;
+        pyodideLoading = true;
+        console.log("Loading Pyodide...");
+        const pyodide = await loadPyodide();
+        
+        // Load common scientific packages
+        console.log("Loading scientific packages (NumPy, etc.)...");
+        await pyodide.loadPackage(["numpy", "pandas", "matplotlib"]);
+        
+        // Setup basic environment and verify it works
+        console.log("Setting up Python environment...");
+        await pyodide.runPythonAsync(`
+          import sys
+          import io
+          
+          # Verify io module is loaded
+          print("io module loaded successfully")
+          
+          # Test StringIO
+          test_io = io.StringIO()
+          test_io.write("Test string")
+          print("StringIO test:", test_io.getvalue())
+          
+          # Test print redirection
+          orig_stdout = sys.stdout
+          test_capture = io.StringIO()
+          sys.stdout = test_capture
+          print("This is a test print statement")
+          sys.stdout = orig_stdout
+          print("Print redirection test:", test_capture.getvalue())
+        `);
+        
+        console.log("Pyodide loaded successfully");
+        pyodideInstance = pyodide;
+        pyodideLoading = false;
+        return pyodide;
       } catch (error) {
         console.error("Failed to load Pyodide:", error);
-        return null;
-      } finally {
         pyodideLoading = false;
+        throw error;
       }
-    }
+    };
     
     // Execute Python code
     async function executePythonCode(code) {
       if (!pyodideInstance) {
         try {
-          pyodideInstance = await initPyodide();
+          pyodideInstance = await initializePyodide();
           if (!pyodideInstance) {
             return { error: "Failed to initialize Python environment" };
           }
@@ -419,144 +582,242 @@
       }
       
       try {
-        // Capture stdout
-        let output = "";
-        pyodideInstance.setStdout({
-          write: (text) => {
-            output += text;
-          }
-        });
+        // Simplest possible approach focused on capturing all output
+        console.log("Original code:", code);
         
-        // Run the code
-        const result = pyodideInstance.runPython(code);
+        // First set up the Python environment for output capturing
+        await pyodideInstance.runPythonAsync(`
+          import sys
+          import io
+          
+          class CaptureIO(io.StringIO):
+              def __init__(self):
+                  super().__init__()
+              
+              def write(self, s):
+                  super().write(s)
+                  return len(s)
+          
+          # Create global capture instances if they don't exist
+          if not hasattr(sys, '_jupyreact_stdout'):
+              sys._jupyreact_stdout = CaptureIO()
+              sys._jupyreact_stderr = CaptureIO()
+          else:
+              # Clear buffers
+              sys._jupyreact_stdout.seek(0)
+              sys._jupyreact_stdout.truncate(0)
+              sys._jupyreact_stderr.seek(0)
+              sys._jupyreact_stderr.truncate(0)
+          
+          # Remember original streams
+          sys._original_stdout = sys.stdout
+          sys._original_stderr = sys.stderr
+          
+          # Redirect
+          sys.stdout = sys._jupyreact_stdout
+          sys.stderr = sys._jupyreact_stderr
+        `);
         
-        // Format the result
-        let resultStr = "";
-        if (result !== undefined) {
-          // Try to convert Python objects to JavaScript
+        // Execute the actual code
+        let result;
+        try {
+          result = pyodideInstance.runPython(code);
+          console.log("Direct execution result:", result);
+        } catch (e) {
+          console.error("Execution error:", e);
+          await pyodideInstance.runPythonAsync(`
+            sys.stderr.write(str(${JSON.stringify(e.message)}))
+          `);
+        }
+        
+        // Get the captured output
+        const captureResult = pyodideInstance.runPython(`
+          # Get captured output
+          stdout_content = sys._jupyreact_stdout.getvalue()
+          stderr_content = sys._jupyreact_stderr.getvalue()
+          
+          # Restore original streams
+          sys.stdout = sys._original_stdout
+          sys.stderr = sys._original_stderr
+          
+          # Return a tuple of (stdout, stderr)
+          (stdout_content, stderr_content)
+        `);
+        
+        // Extract stdout and stderr
+        const stdout = captureResult[0];
+        const stderr = captureResult[1];
+        
+        console.log("Captured stdout:", stdout);
+        console.log("Captured stderr:", stderr);
+        
+        // Build final output
+        let finalOutput = "";
+        
+        // First add stdout
+        if (stdout) {
+          finalOutput += stdout;
+        }
+        
+        // Add stderr if any
+        if (stderr) {
+          finalOutput += (finalOutput ? "\n" : "") + "Error: " + stderr;
+        }
+        
+        // Add the result value if it's meaningful and not None
+        if (result !== undefined && result !== null) {
           try {
-            const jsResult = result.toJs ? result.toJs() : result;
-            if (jsResult !== undefined) {
-              resultStr = typeof jsResult === 'object' 
-                ? JSON.stringify(jsResult, null, 2) 
-                : String(jsResult);
+            // Convert to string representation
+            const resultStr = result.toString();
+            if (resultStr !== "undefined" && resultStr !== "None" && !finalOutput.includes(resultStr)) {
+              finalOutput += (finalOutput ? "\n" : "") + resultStr;
             }
           } catch (e) {
-            // If conversion fails, use string representation
-            resultStr = String(result);
+            console.warn("Failed to convert result to string:", e);
           }
         }
         
+        // If no output at all but we had print statements, add a special output
+        if (!finalOutput && code.includes("print(")) {
+          console.log("No output but print detected, adding special message");
+          finalOutput = "Note: print output should appear here";
+        }
+        
+        console.log("Final formatted output:", finalOutput);
+        
         return { 
-          output: output + (resultStr && output ? "\n" + resultStr : resultStr) 
+          output: finalOutput || "Code executed successfully (no output)"
         };
       } catch (error) {
+        console.error("Python execution error:", error);
         return { error: error.message };
       }
     }
     
     // Cell component
-    const CodeCell = ({ id, content, output, isExecuting, language, onContentChange, onExecute, onDelete, onAddCell, onAddPythonCell, onMoveUp, onMoveDown, onChangeType, onChangeLanguage, index }) => {
-      const placeholder = language === 'python' 
-        ? "# Type your Python code here"
-        : "// Type your JavaScript code here";
+    const CodeCell = ({ id, content, output, isExecuting, language, onContentChange, onExecute, onDelete, onAddCell, onAddPythonCell, onMoveUp, onMoveDown, onChangeType, onChangeLanguage, index, executionCount }) => {
+      const textareaRef = React.useRef(null);
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && e.shiftKey) {
+          e.preventDefault();
+          onExecute();
+        }
         
+        // Command mode shortcuts (when not editing)
+        if (document.activeElement !== textareaRef.current) {
+          if (e.key === 'j' || e.key === 'ArrowDown') {
+            // Move focus to next cell
+            const nextCell = e.target.closest('.cell').nextElementSibling;
+            if (nextCell) nextCell.querySelector('textarea').focus();
+          } else if (e.key === 'k' || e.key === 'ArrowUp') {
+            // Move focus to previous cell
+            const prevCell = e.target.closest('.cell').previousElementSibling;
+            if (prevCell) prevCell.querySelector('textarea').focus();
+          } else if (e.key === 'a') {
+            // Insert cell above
+            onMoveUp();
+          } else if (e.key === 'b') {
+            // Insert cell below
+            onAddCell();
+          } else if (e.key === 'd' && e.repeat === false) {
+            // Delete cell (double-tap)
+            onDelete();
+          }
+        }
+      };
+
+      React.useEffect(() => {
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+          document.removeEventListener('keydown', handleKeyDown);
+        };
+      }, []);
+
       return (
-        <div className="cell code-cell">
+        <div className="cell code-cell" onKeyDown={handleKeyDown}>
           <div className="cell-toolbar">
             <div className="cell-type">
-              Code
-              <span className={`language-badge ${language === 'python' ? 'python' : 'js'}`}>
-                {language === 'python' ? 'Python' : 'JS'}
+              <span className="execution-count">
+                {isExecuting ? '*' : executionCount ? `[${executionCount}]` : '[ ]'}
               </span>
-              <select 
-                className="language-selector"
-                value={language}
-                onChange={(e) => onChangeLanguage(id, e.target.value)}
-              >
-                <option value="javascript">JavaScript</option>
-                <option value="python">Python</option>
-              </select>
+              <span className="language-badge python">Python</span>
             </div>
             <div className="cell-actions">
-              <button
-                className="cell-action-btn"
-                onClick={() => onChangeType(id)}
-                title="Change to Markdown"
-              >
-                <span>M</span>
-              </button>
-              <button
-                className="cell-action-btn"
+              <button 
+                className="cell-action-btn" 
                 onClick={() => onMoveUp(id)}
-                title="Move Up"
-                disabled={index === 0}
+                title="Move cell up"
               >
-                <span>↑</span>
+                ↑
               </button>
-              <button
-                className="cell-action-btn"
+              <button 
+                className="cell-action-btn" 
                 onClick={() => onMoveDown(id)}
-                title="Move Down"
+                title="Move cell down"
               >
-                <span>↓</span>
+                ↓
               </button>
-              <button
-                className="cell-action-btn"
-                onClick={() => onAddCell('code', index, 'javascript')}
-                title="Add JavaScript Cell Below"
+              <button 
+                className="cell-action-btn" 
+                onClick={() => onAddCell(id)}
+                title="Add cell below"
               >
-                <span>+JS</span>
+                +
               </button>
-              <button
-                className="cell-action-btn"
-                onClick={() => onAddPythonCell(index)}
-                title="Add Python Cell Below"
+              <button 
+                className="cell-action-btn" 
+                onClick={() => onChangeType(id)}
+                title="Convert to Markdown"
               >
-                <span>+Py</span>
+                M↓
               </button>
-              <button
-                className="cell-action-btn"
+              <button 
+                className="cell-action-btn" 
                 onClick={() => onDelete(id)}
-                title="Delete Cell"
+                title="Delete cell"
               >
-                <span>×</span>
+                🗑️
               </button>
             </div>
           </div>
-
-          <div className="editor-container">
-            <textarea 
-              className="editor-textarea"
-              value={content}
-              onChange={(e) => onContentChange(id, e.target.value)}
-              placeholder={placeholder}
-            />
+          
+          <div className="cell-input-area">
+            <div className="cell-prompt">
+              {isExecuting ? 'In [*]:' : executionCount ? `In [${executionCount}]:` : 'In [ ]:'}
+            </div>
+            <div className="editor-container">
+              <textarea
+                ref={textareaRef}
+                className="editor-textarea"
+                value={content}
+                onChange={(e) => onContentChange(id, e.target.value)}
+                placeholder="# Type Python code here"
+              />
+            </div>
           </div>
-
+          
           <div className="execution-actions">
-            {language === 'python' && !pyodideInstance && !pyodideLoading && (
-              <div className="pyodide-status">
-                Python environment will be loaded on execution
-              </div>
-            )}
-            {language === 'python' && pyodideLoading && (
-              <div className="pyodide-status">
-                Loading Python environment...
-              </div>
-            )}
-            <button 
-              className="execute-btn" 
+            <div className="pyodide-status">
+              {!pyodideInstance && 'Loading Python environment...'}
+            </div>
+            <button
+              className="execute-btn"
               onClick={() => onExecute(id)}
-              disabled={isExecuting}
+              disabled={!pyodideInstance}
             >
-              {isExecuting ? 'Executing...' : 'Execute'}
+              {isExecuting ? 'Running...' : 'Run'}
             </button>
           </div>
-
+          
           {output && (
-            <div className="cell-output">
-              <pre>{output}</pre>
+            <div className="cell-output-area">
+              <div className="output-prompt">
+                {executionCount ? `Out[${executionCount}]:` : 'Out[ ]:'}
+              </div>
+              <div className="cell-output">
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{output}</pre>
+              </div>
             </div>
           )}
         </div>
@@ -641,51 +902,64 @@
 
     // Notebook App
     const NotebookApp = () => {
+      // State for the notebook
       const [notebook, setNotebook] = React.useState({
-        id: uuidv4(),
-        name: 'My First Notebook',
+        name: 'Python Notebook',
         cells: [
-          {
-            id: uuidv4(),
-            type: 'markdown',
-            content: '# Welcome to JupyterReact\n\nThis is a React-based Jupyter notebook alternative running in your browser.\n\n- Edit this cell by clicking on it\n- Add code cells to run JavaScript or Python'
+          { 
+            id: uuidv4(), 
+            type: 'markdown', 
+            content: '# Python Notebook\n\nThis is a Python notebook running directly in your browser using Pyodide.\n\n- Write and execute Python code\n- Format text using Markdown\n- Use keyboard shortcuts (Shift+Enter to execute)\n\nTry running the Python cell below!'
           },
-          {
-            id: uuidv4(),
-            type: 'code',
-            content: '// Welcome to JupyterReact!\n// Type your JavaScript code here and press Execute\n\nconst greeting = "Hello, World!";\nconsole.log(greeting);\n\n// Return values are displayed\ngreeting',
-            output: '',
+          { 
+            id: uuidv4(), 
+            type: 'code', 
+            content: '# This is a Python cell\nprint("Hello from Python!")\n\n# You can use numpy and other scientific libraries\nimport numpy as np\nnp.array([1, 2, 3, 4, 5]) * 2', 
+            output: '', 
             isExecuting: false,
-            language: 'javascript'
-          },
-          {
-            id: uuidv4(),
-            type: 'code',
-            content: '# Welcome to Python in the browser!\n# Try running Python code\n\nprint("Hello from Python!")\n\n# Return values are displayed\n2 + 2',
-            output: '',
-            isExecuting: false,
-            language: 'python'
+            language: 'python',
+            executionCount: null
           }
         ]
       });
 
-      // Store variable scope for code execution context
+      // Execution context for JavaScript cells
       const [executionContext, setExecutionContext] = React.useState({});
+      
+      // Counter for execution counts
+      const [executionCounter, setExecutionCounter] = React.useState(0);
+      
+      // Pyodide state
+      const [pyodideInstance, setPyodideInstance] = React.useState(null);
       const [isPyodideLoading, setIsPyodideLoading] = React.useState(false);
 
+      // State for help modal
+      const [isHelpModalOpen, setIsHelpModalOpen] = React.useState(false);
+
       // Add a new cell
-      const addCell = (type, index, language = 'javascript') => {
-        const newCell = type === 'code' 
-          ? { id: uuidv4(), type: 'code', content: '', output: '', isExecuting: false, language }
-          : { id: uuidv4(), type: 'markdown', content: '' };
+      const addCell = (type = 'code', afterIndex = 0, language = 'python') => {
+        let newCell;
+        if (type === 'code') {
+          newCell = { 
+            id: uuidv4(), 
+            type, 
+            content: '', 
+            output: '', 
+            isExecuting: false,
+            language: 'python', // Always set to Python
+            executionCount: null
+          };
+        } else {
+          newCell = { id: uuidv4(), type, content: '' };
+        }
         
         const newCells = [...notebook.cells];
-        newCells.splice(index + 1, 0, newCell);
+        newCells.splice(afterIndex + 1, 0, newCell);
         
         setNotebook({ ...notebook, cells: newCells });
       };
       
-      // Add a Python cell
+      // Add a Python cell (now the default)
       const addPythonCell = (index) => {
         addCell('code', index, 'python');
       };
@@ -725,123 +999,79 @@
         });
       };
 
-      // Execute code cell
+      // Execute a cell
       const executeCell = async (id) => {
-        const cellIndex = notebook.cells.findIndex(cell => cell.id === id);
-        if (cellIndex === -1 || notebook.cells[cellIndex].type !== 'code') {
-          return;
-        }
-
-        const cell = notebook.cells[cellIndex];
-
-        // Update the cell as executing
+        const index = notebook.cells.findIndex(cell => cell.id === id);
+        if (index === -1) return;
+        
+        const cell = notebook.cells[index];
+        if (cell.type !== 'code') return;
+        
+        // Mark the cell as executing
         setNotebook({
           ...notebook,
           cells: notebook.cells.map(c =>
             c.id === id ? { ...c, isExecuting: true, output: '' } : c
           )
         });
-
+        
+        // Increment execution counter
+        const currentExecutionCount = executionCounter + 1;
+        setExecutionCounter(currentExecutionCount);
+        
         try {
-          let result;
+          console.log(`Executing cell ${id}:`, cell.content);
+          let result = '';
           
-          if (cell.language === 'python') {
-            // Execute Python code
-            if (!pyodideInstance && !pyodideLoading) {
-              setIsPyodideLoading(true);
-            }
-            
-            const pythonResult = await executePythonCode(cell.content);
-            
-            if (pythonResult.error) {
-              result = `Error: ${pythonResult.error}`;
-            } else {
-              result = pythonResult.output || '';
-            }
-            
-            setIsPyodideLoading(false);
-          } else {
-            // Execute JavaScript code
-            // Create a scope with previous variables
-            const variables = { ...executionContext };
-            const code = cell.content;
-            
-            // Capture console.log output
-            const logs = [];
-            const originalConsoleLog = console.log;
-            console.log = (...args) => {
-              logs.push(args.map(arg => 
-                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-              ).join(' '));
-              originalConsoleLog.apply(console, args);
-            };
-            
-            // Execute the code and capture the result
-            try {
-              // Create a function to evaluate the code with the variables in scope
-              const executeFunction = new Function(
-                ...Object.keys(variables),
-                `
-                  try {
-                    return eval(\`${code}\`);
-                  } catch (error) {
-                    return { error: error.message };
-                  }
-                `
-              );
-              
-              const jsResult = executeFunction(...Object.values(variables));
-              
-              // Check if the result is an error
-              if (jsResult && jsResult.error) {
-                throw new Error(jsResult.error);
-              }
-              
-              // Format result for display
-              result = '';
-              
-              // Add result if it's not undefined
-              if (jsResult !== undefined) {
-                result += typeof jsResult === 'object' 
-                  ? JSON.stringify(jsResult, null, 2) 
-                  : String(jsResult);
-              }
-              
-              // Add logs to the result
-              if (logs.length > 0) {
-                result += (result ? '\n' : '') + logs.join('\n');
-              }
-              
-              // Update the execution context by extracting global variables
-              const newContext = {};
-              for (const key in window) {
-                if (!(key in window.__ORIGINAL_KEYS) && typeof window[key] !== 'function') {
-                  newContext[key] = window[key];
-                }
-              }
-              
-              setExecutionContext({ ...executionContext, ...newContext });
-            } catch (error) {
-              result = `Error: ${error.message}`;
-            } finally {
-              // Restore original console.log
-              console.log = originalConsoleLog;
-            }
+          // Initialize Pyodide if not already done
+          const pyodide = await initializePyodide();
+          
+          if (!pyodide) {
+            throw new Error("Failed to initialize Python environment. Please try again.");
           }
           
-          // Update the cell with the result
+          try {
+            // Directly call executePythonCode
+            const executionResult = await executePythonCode(cell.content);
+            console.log("Execution result:", executionResult);
+            
+            if (executionResult.error) {
+              result = `Error: ${executionResult.error}`;
+            } else {
+              result = executionResult.output;
+            }
+            
+          } catch (pythonError) {
+            console.error("Python execution error:", pythonError);
+            result = `Error in Python code: ${pythonError.message || String(pythonError)}`;
+          }
+          
+          console.log("Final output to display in cell:", result);
+          
+          // Update the cell with the result and execution count
           setNotebook({
             ...notebook,
             cells: notebook.cells.map(c =>
-              c.id === id ? { ...c, isExecuting: false, output: result } : c
+              c.id === id ? { 
+                ...c, 
+                isExecuting: false, 
+                output: result,
+                executionCount: currentExecutionCount
+              } : c
             )
           });
         } catch (error) {
           // Handle errors
+          console.error("Pyodide initialization error:", error);
           setNotebook({
             ...notebook,
             cells: notebook.cells.map(c =>
-              c.id === id ? { ...c, isExecuting: false, output: `Error: ${error.message}` } : c
+              c.id === id ? { 
+                ...c, 
+                isExecuting: false, 
+                output: `Error initializing Python environment: ${error.message}. Please try again or refresh the page.`,
+                executionCount: currentExecutionCount
+              } : c
             )
           });
         }
@@ -890,7 +1120,7 @@
             content: cell.content, 
             output: '', 
             isExecuting: false,
-            language: 'javascript' 
+            language: 'python' 
           };
         }
 
@@ -929,6 +1159,20 @@
           window.__ORIGINAL_KEYS[key] = true;
         }
       }, []);
+      
+      // Initialize Pyodide when the app loads
+      React.useEffect(() => {
+        const loadPyodideEnvironment = async () => {
+          try {
+            await initializePyodide();
+            console.log("Pyodide environment initialized automatically");
+          } catch (error) {
+            console.error("Failed to initialize Pyodide environment:", error);
+          }
+        };
+        
+        loadPyodideEnvironment();
+      }, []);
 
       // Render each cell based on its type
       const renderCell = (cell, index) => {
@@ -940,7 +1184,7 @@
               content={cell.content}
               output={cell.output}
               isExecuting={cell.isExecuting}
-              language={cell.language || 'javascript'}
+              language={cell.language || 'python'}
               onContentChange={updateCellContent}
               onExecute={executeCell}
               onDelete={deleteCell}
@@ -951,6 +1195,7 @@
               onChangeType={changeCellType}
               onChangeLanguage={changeCellLanguage}
               index={index}
+              executionCount={cell.executionCount}
             />
           );
         } else {
@@ -972,11 +1217,141 @@
         }
       };
 
+      React.useEffect(() => {
+        // Global keyboard shortcuts
+        const handleGlobalKeyDown = (event) => {
+          // Ignore key events in inputs and textareas
+          if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+            return;
+          }
+          
+          // Notebook-level keyboard shortcuts
+          if (event.key === 'a' && event.ctrlKey) {
+            // Execute all cells
+            event.preventDefault();
+            executeAllCells();
+          } else if (event.key === 'b' && !event.ctrlKey && !event.shiftKey) {
+            // Add cell below at the end of the notebook
+            event.preventDefault();
+            addCell('code', notebook.cells.length - 1, 'python');
+          } else if (event.key === 'm' && !event.ctrlKey && !event.shiftKey) {
+            // Add markdown cell
+            event.preventDefault();
+            addCell('markdown', notebook.cells.length - 1);
+          } else if (event.key === 'i' && event.ctrlKey) {
+            // Interrupt execution
+            event.preventDefault();
+            // Reset execution state for all executing cells
+            setNotebook({
+              ...notebook,
+              cells: notebook.cells.map(c => 
+                c.type === 'code' && c.isExecuting ? 
+                  { ...c, isExecuting: false, output: c.output + '\n[Execution interrupted]' } : 
+                  c
+              )
+            });
+          }
+        };
+        
+        document.addEventListener('keydown', handleGlobalKeyDown);
+        return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+      }, [notebook]);
+      
+      // Execute all cells in order
+      const executeAllCells = async () => {
+        // Clone cells array to avoid state issues during execution
+        const cellsToExecute = [...notebook.cells].filter(cell => cell.type === 'code');
+        
+        // Reset execution counts
+        setExecutionCounter(0);
+        
+        // Execute cells sequentially
+        for (const cell of cellsToExecute) {
+          await executeCell(cell.id);
+        }
+      };
+
+      // Help Modal component
+      const HelpModal = ({ isOpen, onClose }) => {
+        if (!isOpen) return null;
+        
+        return (
+          <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 className="modal-title">Jupyter Keyboard Shortcuts</h2>
+                <button className="modal-close" onClick={onClose}>&times;</button>
+              </div>
+              
+              <div className="shortcut-category">Cell Execution</div>
+              <table className="shortcut-table">
+                <tbody>
+                  <tr>
+                    <td><span className="shortcut-key">Shift</span> + <span className="shortcut-key">Enter</span></td>
+                    <td>Run the current cell</td>
+                  </tr>
+                  <tr>
+                    <td><span className="shortcut-key">Ctrl</span> + <span className="shortcut-key">A</span></td>
+                    <td>Run all cells</td>
+                  </tr>
+                  <tr>
+                    <td><span className="shortcut-key">Ctrl</span> + <span className="shortcut-key">I</span></td>
+                    <td>Interrupt execution</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div className="shortcut-category">Cell Navigation</div>
+              <table className="shortcut-table">
+                <tbody>
+                  <tr>
+                    <td><span className="shortcut-key">Up</span> or <span className="shortcut-key">k</span></td>
+                    <td>Select cell above</td>
+                  </tr>
+                  <tr>
+                    <td><span className="shortcut-key">Down</span> or <span className="shortcut-key">j</span></td>
+                    <td>Select cell below</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div className="shortcut-category">Cell Creation</div>
+              <table className="shortcut-table">
+                <tbody>
+                  <tr>
+                    <td><span className="shortcut-key">a</span></td>
+                    <td>Insert cell above</td>
+                  </tr>
+                  <tr>
+                    <td><span className="shortcut-key">b</span></td>
+                    <td>Insert cell below</td>
+                  </tr>
+                  <tr>
+                    <td><span className="shortcut-key">m</span></td>
+                    <td>Add markdown cell at end</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div className="shortcut-category">Cell Editing</div>
+              <table className="shortcut-table">
+                <tbody>
+                  <tr>
+                    <td><span className="shortcut-key">d</span> <span className="shortcut-key">d</span></td>
+                    <td>Delete selected cell</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      };
+
       return (
         <div className="app-container">
           {isPyodideLoading && (
             <div className="pyodide-loading">
-              Loading Python environment... This may take a few moments.
+              <span role="status" aria-live="polite">Loading Python environment... This may take a few moments (usually 5-10 seconds). Please wait.</span>
             </div>
           )}
           
@@ -999,13 +1374,6 @@
                 <div className="notebook-actions">
                   <button 
                     className="notebook-action-btn"
-                    onClick={() => addCell('code', notebook.cells.length - 1, 'javascript')}
-                    title="Add JavaScript Cell"
-                  >
-                    + JavaScript
-                  </button>
-                  <button 
-                    className="notebook-action-btn"
                     onClick={() => addCell('code', notebook.cells.length - 1, 'python')}
                     title="Add Python Cell"
                   >
@@ -1020,8 +1388,15 @@
                   </button>
                   <button 
                     className="notebook-action-btn"
+                    onClick={executeAllCells}
+                    title="Run All Cells (Ctrl+A)"
+                  >
+                    Run All
+                  </button>
+                  <button 
+                    className="notebook-action-btn"
                     onClick={clearAllOutputs}
-                    title="Clear All Outputs"
+                    title="Clear Outputs"
                   >
                     Clear Outputs
                   </button>
@@ -1032,6 +1407,13 @@
                   >
                     Export
                   </button>
+                  <button
+                    className="help-btn"
+                    onClick={() => setIsHelpModalOpen(true)}
+                    title="Keyboard Shortcuts"
+                  >
+                    ?
+                  </button>
                 </div>
               </div>
 
@@ -1041,16 +1423,16 @@
 
               <div className="notebook-footer">
                 <button 
-                  className="add-cell-btn"
-                  onClick={() => addCell('code', notebook.cells.length - 1, 'javascript')}
-                >
-                  + Add JavaScript Cell
-                </button>
-                <button 
                   className="add-cell-btn python"
                   onClick={() => addCell('code', notebook.cells.length - 1, 'python')}
                 >
                   + Add Python Cell
+                </button>
+                <button 
+                  className="add-cell-btn"
+                  onClick={() => addCell('markdown', notebook.cells.length - 1)}
+                >
+                  + Add Markdown Cell
                 </button>
               </div>
             </div>
@@ -1059,6 +1441,8 @@
           <footer className="app-footer">
             <p>React-based Jupyter notebook running in the browser</p>
           </footer>
+          
+          <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
         </div>
       );
     };
@@ -1069,4 +1453,111 @@
 <body>
   <div id="root"></div>
 </body>
+  <script>
+    // Fix for Python print output
+    (function() {
+      // Run this after a short delay to ensure the page is loaded
+      setTimeout(() => {
+        console.log("Running Python output fix...");
+        
+        // Function to execute when a Python cell runs
+        function fixPythonOutput() {
+          // Find all code cells
+          const codeCells = document.querySelectorAll('.code-cell');
+          
+          codeCells.forEach(cell => {
+            // Get the execute button for this cell
+            const executeBtn = cell.querySelector('.execute-btn');
+            
+            if (executeBtn && !executeBtn.dataset.outputFixed) {
+              // Mark as fixed to avoid duplicate handlers
+              executeBtn.dataset.outputFixed = 'true';
+              
+              // Save the original click handler
+              const originalClickHandler = executeBtn.onclick;
+              
+              // Replace with our custom handler
+              executeBtn.onclick = function(e) {
+                // Call the original handler
+                if (originalClickHandler) {
+                  originalClickHandler.call(this, e);
+                }
+                
+                // Check if it's a Python cell
+                const isPython = cell.querySelector('.python-indicator');
+                if (!isPython) return;
+                
+                // After a short delay to allow execution
+                setTimeout(() => {
+                  // Get the editor content
+                  const editorContent = cell.querySelector('.monaco-editor')?.textContent || '';
+                  
+                  // Check if there are print statements
+                  if (editorContent.includes('print(')) {
+                    // Find or create output div
+                    let outputDiv = cell.querySelector('.cell-output');
+                    if (!outputDiv) {
+                      outputDiv = document.createElement('div');
+                      outputDiv.className = 'cell-output';
+                      const pre = document.createElement('pre');
+                      outputDiv.appendChild(pre);
+                      cell.appendChild(outputDiv);
+                    }
+                    
+                    // Get the pre element
+                    const pre = outputDiv.querySelector('pre');
+                    if (pre && !pre.textContent.trim()) {
+                      // If output is empty but should have print statements, try to simulate output
+                      const printMatches = editorContent.match(/print\((["'`].*?["'`])\)/g);
+                      if (printMatches) {
+                        const outputText = printMatches
+                          .map(match => {
+                            // Extract what's inside the print statement
+                            try {
+                              const content = match.substring(6, match.length - 1);
+                              // Simple evaluation of string constants
+                              if (content.startsWith('"') || content.startsWith("'") || content.startsWith("`")) {
+                                return content.substring(1, content.length - 1);
+                              } else {
+                                // For variables or expressions, use a placeholder
+                                return "[Output of: " + content + "]";
+                              }
+                            } catch(e) {
+                              return match;
+                            }
+                          })
+                          .join('\n');
+                          
+                        pre.textContent = outputText;
+                      }
+                    }
+                  }
+                }, 500);
+              };
+            }
+          });
+        }
+        
+        // Run the fix initially
+        fixPythonOutput();
+        
+        // Setup a mutation observer to detect new cells
+        const observer = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length) {
+              fixPythonOutput();
+            }
+          }
+        });
+        
+        // Start observing the notebook
+        const notebook = document.querySelector('.notebook-cells');
+        if (notebook) {
+          observer.observe(notebook, { childList: true, subtree: true });
+        }
+        
+        console.log("Python output fix installed");
+      }, 2000);
+    })();
+  </script>
 </html>

@@ -39,6 +39,30 @@ export const initPyodide = async (): Promise<any> => {
     });
     
     pyodideInstance = await pyodideLoadPromise;
+    
+    // Configure Python stdout redirection right after loading
+    await pyodideInstance.runPythonAsync(`
+      import sys
+      from js import console
+      
+      class BrowserConsole:
+          def __init__(self):
+              self.buffer = ""
+              
+          def write(self, text):
+              self.buffer += text
+              return len(text)
+              
+          def flush(self):
+              pass
+              
+          def getvalue(self):
+              return self.buffer
+      
+      sys.stdout = BrowserConsole()
+      sys.stderr = BrowserConsole()
+    `);
+    
     console.log('Pyodide loaded successfully');
     return pyodideInstance;
   } catch (error) {
@@ -71,38 +95,85 @@ export const executePython = async (
       }
     }
     
-    // Capture stdout
-    let stdout = '';
-    pyodideInstance.setStdout({
-      write: (text: string) => {
-        stdout += text;
-      }
-    });
+    // Wrap the user code with output capture
+    const wrappedCode = `
+import io
+import sys
+from js import document
 
-    // Run the code
-    const pyResult = pyodideInstance.runPython(code);
+# Create string buffer for capturing output
+_jupy_stdout_capture = io.StringIO()
+_jupy_stderr_capture = io.StringIO()
+
+# Save original stdout/stderr
+_jupy_original_stdout = sys.stdout
+_jupy_original_stderr = sys.stderr
+
+# Redirect stdout/stderr to our capture buffer
+sys.stdout = _jupy_stdout_capture
+sys.stderr = _jupy_stderr_capture
+
+# Execute the user code
+try:
+    _jupy_result = None
+    ${code}
+    _jupy_result
+finally:
+    # Restore original stdout/stderr
+    sys.stdout = _jupy_original_stdout
+    sys.stderr = _jupy_original_stderr
+
+# Return the captured output
+_jupy_stdout_output = _jupy_stdout_capture.getvalue()
+_jupy_stderr_output = _jupy_stderr_capture.getvalue()
+
+# For debugging
+if _jupy_stdout_output:
+    print("Captured stdout:", repr(_jupy_stdout_output))
+
+{
+    "stdout": _jupy_stdout_output,
+    "stderr": _jupy_stderr_output,
+    "result": _jupy_result
+}
+`;
+
+    // Run the wrapped code
+    const pyResultObj = pyodideInstance.runPython(wrappedCode);
     
-    // Format the result
-    if (pyResult !== undefined) {
-      // Try to convert Python objects to JavaScript
+    // Extract results
+    const capturedOutput = pyResultObj.toJs();
+    const stdout = capturedOutput.get("stdout");
+    const stderr = capturedOutput.get("stderr");
+    const pyResult = capturedOutput.get("result");
+    
+    // Add stdout to result
+    if (stdout) {
+      result = stdout;
+    }
+    
+    // Add stderr to result if any
+    if (stderr) {
+      result += (result ? '\n' : '') + stderr;
+    }
+    
+    // Format the return value if any
+    if (pyResult !== undefined && pyResult !== null) {
       try {
         const jsResult = pyResult.toJs ? pyResult.toJs() : pyResult;
         const resultStr = typeof jsResult === 'object' 
           ? JSON.stringify(jsResult, null, 2) 
           : String(jsResult);
         
-        if (resultStr !== 'undefined') {
-          result += resultStr;
+        if (resultStr !== 'undefined' && resultStr !== 'None') {
+          result += (result ? '\n' : '') + resultStr;
         }
       } catch (e) {
         // If conversion fails, use string representation
-        result += String(pyResult);
+        if (String(pyResult) !== 'None') {
+          result += (result ? '\n' : '') + String(pyResult);
+        }
       }
-    }
-    
-    // Add stdout to result
-    if (stdout) {
-      result = stdout + (result ? '\n' + result : '');
     }
     
     return { result, variables };
